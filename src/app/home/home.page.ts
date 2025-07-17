@@ -20,7 +20,6 @@ export class HomePage implements OnInit {
   permissionsGranted = false;
   audio = new Audio();
 
-  // Neue Variablen für die Play/Pause-Logik
   currentlyPlayingFile: string | null = null;
   isAudioPaused = false;
 
@@ -127,7 +126,6 @@ export class HomePage implements OnInit {
         this.isAudioPaused = true;
       }
     } else {
-      // Wenn eine neue Datei geklickt wird, starte die Wiedergabe
       try {
         const { uri } = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
         this.audio.src = Capacitor.convertFileSrc(uri);
