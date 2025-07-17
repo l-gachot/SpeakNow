@@ -38,7 +38,7 @@ export class AudioService {
       await Filesystem.copy({
         from: result.uri,
         to: fileName,
-        toDirectory: Directory.Data, // KORRIGIERT
+        toDirectory: Directory.Data, 
       });
 
       console.log('✅ Datei erfolgreich kopiert:', fileName);
