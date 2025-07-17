@@ -1,0 +1,223 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar class="ion-text-center">
+    <ion-title>Audio Recorder</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+
+  <div class="controls-container">
+    <div class="pulsating-circle" [class.recording]="isRecording && !isPaused"></div>
+
+    <ion-button class="side-button" color="primary" (click)="isPaused ? resumeRecording() : pauseRecording()" [disabled]="!isRecording">
+      <ion-icon [name]="isPaused ? 'play' : 'pause'" slot="icon-only"></ion-icon>
+    </ion-button>
+
+    <ion-button class="record-button" color="success" (click)="startRecording()" [disabled]="isRecording || !permissionsGranted">
+      <ion-icon name="mic-sharp" slot="icon-only"></ion-icon>
+    </ion-button>
+
+    <ion-button class="side-button" color="danger" (click)="stopRecording()" [disabled]="!isRecording">
+      <ion-icon name="stop-sharp" slot="icon-only"></ion-icon>
+    </ion-button>
+  </div>
+
+
+  <ion-list-header>Aufnahmen</ion-list-header>
+  <div *ngIf="recordings.length === 0" class="empty-state">
+    <ion-icon name="musical-notes-outline"></ion-icon>
+    <p>Noch keine Aufnahmen vorhanden.</p>
+  </div>
+
+  <ion-list *ngIf="recordings.length > 0" class="recording-list">
+    <ion-card *ngFor="let recording of recordings" class="recording-card">
+      <ion-item lines="none">
+        <ion-icon name="musical-note" slot="start" class="file-icon"></ion-icon>
+        <ion-label>
+          <h2>Aufnahme</h2>
+          <p>{{ recording | slice:10:-4 }}</p>
+        </ion-label>
+
+        <ion-buttons slot="end">
+          <ion-button fill="clear" (click)="togglePlayback(recording)">
+            <ion-icon slot="icon-only" [name]="currentlyPlayingFile === recording && !isAudioPaused ? 'pause-circle' : 'play-circle'" class="play-button"></ion-icon>
+          </ion-button>
+
+          <ion-button fill="clear" (click)="shareRecording(recording)">
+            <ion-icon slot="icon-only" name="share-social-outline"></ion-icon>
+          </ion-button>
+
+          <ion-button fill="clear" (click)="deleteRecording(recording)">
+            <ion-icon slot="icon-only" name="trash-outline" color="danger"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-item>
+    </ion-card>
+  </ion-list>
+
+</ion-content>
+
+<style>
+  /* ===== Farbvariablen & Standardfarben ===== */
+  :root {
+    --ion-background-color: #e7f0fc;
+    --ion-toolbar-background: transparent;
+    --ion-card-background: #ffffff;
+    --primary-color-start: #6a11cb;
+    --primary-color-end: #2575fc;
+    --text-color: #333;
+    --text-color-light: #666;
+    
+    /* Explizite Farben für die Buttons definieren */
+    --ion-color-success: #2dd36f;
+    --ion-color-primary: #2575fc;
+    --ion-color-danger: #eb445a;
+  }
+
+  /* ===== Grund-Layout & Header ===== */
+  ion-toolbar {
+    --background: var(--ion-toolbar-background);
+  }
+
+  ion-title {
+    font-weight: bold;
+    font-size: 2em;
+    color: #6495ed;
+  }
+
+  /* ===== NEU: Aufnahme-Steuerungsbereich ===== */
+  .controls-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 20px; /* Abstand zwischen den Buttons */
+    margin: 40px 0;
+    position: relative;
+  }
+
+  /* Mittlerer, großer Aufnahme-Button */
+  .record-button {
+    --border-radius: 50%;
+    --box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    /* Die Farbe wird direkt im HTML über color="success" gesetzt */
+    width: 100px;
+    height: 100px;
+    font-size: 3.5em;
+    z-index: 2;
+    order: 2; /* Stellt sicher, dass der Button in der Mitte ist */
+  }
+
+  .record-button ion-icon {
+    color: white;
+  }
+
+  /* Kleinere Seiten-Buttons für Pause und Stop */
+  .side-button {
+    --border-radius: 50%;
+    --box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+    width: 30px;
+    height: 30px;
+    font-size: 1.5em;
+    z-index: 2;
+  }
+  
+  /* Reihenfolge der Seiten-Buttons festlegen */
+  .side-button[color="primary"] {
+    order: 1; /* Pause-Button links */
+  }
+  .side-button[color="danger"] {
+    order: 3; /* Stop-Button rechts */
+  }
+
+
+  /* Pulsierende Animation für die Aufnahme */
+  .pulsating-circle {
+    position: absolute;
+    /* Zentriert sich relativ zum Container */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    background: var(--ion-color-success); /* Passt zur Farbe des Aufnahme-Buttons */
+    border-radius: 50%;
+    opacity: 0;
+    z-index: 1;
+  }
+
+  .pulsating-circle.recording {
+    animation: pulse 2s infinite ease-out;
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.7;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.5);
+      opacity: 0;
+    }
+  }
+
+  /* ===== Aufnahmen-Liste (unverändert) ===== */
+  ion-list-header {
+    --background: #6495ed;
+    --color: #fff;
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-top: 20px;
+    border-radius: 17px;
+    margin-right: 5px;
+    padding: 10px;
+  }
+
+  .recording-list {
+    background: transparent;
+    padding: 0;
+  }
+
+  .recording-card {
+    margin: 10px 0;
+    border-radius: 17px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    background: white;
+  }
+
+  .recording-card ion-item {
+    --background: transparent;
+    --inner-padding-end: 10px;
+  }
+
+  .file-icon {
+    font-size: 1.5em;
+    color: var(--primary-color-end);
+    margin-right: 15px;
+  }
+
+  ion-label h2 {
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  ion-label p {
+    color: var(--text-color-light);
+    font-size: 0.9em;
+  }
+  
+  .play-button {
+    font-size: 2.2em;
+    color: var(--primary-color-start);
+  }
+
+  /* ===== Leerer Zustand (unverändert) ===== */
+  .empty-state {
+    text-align: center;
+    margin-top: 50px;
+    color: var(--text-color-light);
+  }
+  .empty-state ion-icon {
+    font-size: 3em;
+  }
+</style>
