@@ -32,7 +32,6 @@
     justify-content: center;
     gap: 20px; 
     margin: 40px 0;
-    position: relative;
   }
 
   .record-button {
@@ -43,6 +42,8 @@
     font-size: 3.5em;
     z-index: 2;
     order: 2; 
+    position: relative;
+    overflow: visible;
   }
 
   .record-button ion-icon {
@@ -70,12 +71,12 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 80px;
-    height: 80px;
+    width: 150px;
+    height: 150px;
     background: var(--ion-color-success); 
     border-radius: 50%;
     opacity: 0;
-    z-index: 1;
+    z-index: -1;
   }
 
   .pulsating-circle.recording {
@@ -108,6 +109,7 @@
   .recording-list {
     background: transparent;
     padding: 0;
+    margin-top: 30vh; /* Platz für den Header */
   }
 
   .recording-card {
@@ -152,3 +154,30 @@
   .empty-state ion-icon {
     font-size: 3em;
   }
+
+  ion-content {
+  --background: var(--ion-background-color);
+  position: relative;
+  padding: 0;
+}
+
+.fixed-header {
+  position: fixed;
+  top: 56px; /* Höhe von <ion-header> */
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--ion-background-color);
+  padding: 10px 16px;
+}
+
+.scrollable-list {
+  position: absolute;
+  top: 10px; /* Passe das an die tatsächliche Höhe von fixed-header an */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow-y: auto;
+  padding: 0 16px 16px 16px;
+}
+

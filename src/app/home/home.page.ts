@@ -45,9 +45,35 @@ export class HomePage implements OnInit {
   async loadRecordings() {
     try {
       const { files } = await Filesystem.readdir({ path: '', directory: Directory.Data });
+      
+      // Erweiterte Filterung für Systemdateien
       this.recordings = files
-        .filter(file => file.name !== 'profileInstalled')
+        .filter(file => {
+          const fileName = file.name;
+          // Filtere bekannte Systemdateien heraus
+          const systemFiles = [
+            'profileInstalled',
+            'rList',
+            '.DS_Store',
+            'Thumbs.db',
+            '.gitkeep'
+          ];
+          
+          // Zusätzliche Checks für potenzielle Systemdateien
+          const isSystemFile = systemFiles.includes(fileName) ||
+                              fileName.startsWith('.') ||
+                              fileName.length === 0 ||
+                              !fileName.includes('.') ||
+                              fileName === 'rList';
+          
+          // Nur echte Audiodateien durchlassen (optional: spezifische Dateierweiterungen)
+          const isAudioFile = fileName.match(/\.(mp3|wav|m4a|aac|ogg|webm)$/i);
+          
+          return !isSystemFile && (isAudioFile || fileName.includes('recording'));
+        })
         .map(file => file.name);
+      
+      console.log('📄 Gefilterte Aufnahmen:', this.recordings);
       this.cd.detectChanges();
     } catch (e) {
       console.error('❌ Fehler beim Laden der Aufnahmen', e);
