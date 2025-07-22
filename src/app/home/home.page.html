@@ -6,19 +6,19 @@
 
 <ion-content class="ion-padding">
 
-  <!-- Fester Bereich -->
-  <div class="fixed-header">
+  <div slot="fixed" class="fixed-content-top">
     <div class="controls-container">
 
       <ion-button class="side-button" color="primary" (click)="isPaused ? resumeRecording() : pauseRecording()" [disabled]="!isRecording">
         <ion-icon [name]="isPaused ? 'play' : 'pause'" slot="icon-only"></ion-icon>
       </ion-button>
 
-      <ion-button class="record-button" color="success" (click)="startRecording()" [disabled]="isRecording || !permissionsGranted">
+      <div class="record-button-wrapper">
         <div class="pulsating-circle" [class.recording]="isRecording && !isPaused"></div>
-        <ion-icon name="mic-sharp" slot="icon-only"></ion-icon>
-      </ion-button>
-
+        <ion-button class="record-button" color="success" (click)="startRecording()" [disabled]="isRecording || !permissionsGranted">
+          <ion-icon name="mic-sharp" slot="icon-only"></ion-icon>
+        </ion-button>
+      </div>
       <ion-button class="side-button" color="danger" (click)="stopRecording()" [disabled]="!isRecording">
         <ion-icon name="stop-sharp" slot="icon-only"></ion-icon>
       </ion-button>
@@ -27,39 +27,39 @@
     <ion-list-header>Aufnahmen</ion-list-header>
   </div>
 
-  <!-- Scrollbarer Bereich -->
-  <div class="scrollable-list">
+  <ion-list class="recording-list">
     <div *ngIf="recordings.length === 0" class="empty-state">
       <ion-icon name="musical-notes-outline"></ion-icon>
       <p>Noch keine Aufnahmen vorhanden.</p>
     </div>
 
-    <ion-list *ngIf="recordings.length > 0" class="recording-list">
-      <ion-card *ngFor="let recording of recordings" class="recording-card">
-        <ion-item lines="none">
-          <ion-icon name="musical-note" slot="start" class="file-icon"></ion-icon>
-          <ion-label>
-            <h2>Aufnahme</h2>
-            <p>{{ recording | slice:10:-4 }}</p>
-          </ion-label>
+    <ion-card *ngFor="let recording of recordings" class="recording-card">
+      <ion-item lines="none">
+        <ion-icon name="musical-note" slot="start" class="file-icon"></ion-icon>
+        <ion-label>
+          <h2>Aufnahme</h2>
+          <p>{{ recording | slice:10:-4 }}</p>
+        </ion-label>
 
-          <ion-buttons slot="end">
-            <ion-button fill="clear" (click)="togglePlayback(recording)">
-              <ion-icon slot="icon-only" [name]="currentlyPlayingFile === recording && !isAudioPaused ? 'pause-circle' : 'play-circle'" class="play-button"></ion-icon>
-            </ion-button>
+        <ion-buttons slot="end">
+          <ion-button fill="clear" (click)="togglePlayback(recording)">
+            <ion-icon slot="icon-only"
+                      [name]="currentlyPlayingFile === recording && !isAudioPaused ? 'pause-circle' : 'play-circle'"
+                      class="play-button"
+                      [class.playing]="currentlyPlayingFile === recording && !isAudioPaused">
+            </ion-icon>
+          </ion-button>
 
-            <ion-button fill="clear" (click)="shareRecording(recording)">
-              <ion-icon slot="icon-only" name="share-social-outline"></ion-icon>
-            </ion-button>
+          <ion-button fill="clear" (click)="shareRecording(recording)">
+            <ion-icon slot="icon-only" name="share-social-outline"></ion-icon>
+          </ion-button>
 
-            <ion-button fill="clear" (click)="deleteRecording(recording)">
-              <ion-icon slot="icon-only" name="trash-outline" color="danger"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-item>
-      </ion-card>
-    </ion-list>
-  </div>
+          <ion-button fill="clear" (click)="deleteRecording(recording)">
+            <ion-icon slot="icon-only" name="trash-outline" color="danger"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-item>
+    </ion-card>
+  </ion-list>
+
 </ion-content>
-
-
