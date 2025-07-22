@@ -10,6 +10,7 @@
     --ion-color-success: #2dd36f;
     --ion-color-primary: #2575fc;
     --ion-color-danger: #eb445a;
+    --ion-safe-area-top: 25vh;
   }
 
   /* ===== Grund-Layout & Header ===== */
@@ -23,6 +24,27 @@
     font-size: 2em;
     color: #6495ed;
   }
+
+  
+.fixed-header {
+  position: fixed;
+  top: 56px; /* Höhe von <ion-header> */
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--ion-background-color);
+  padding: 10px 16px;
+}
+
+.scrollable-list {
+  position: absolute;
+  top: 10px; /* Passe das an die tatsächliche Höhe von fixed-header an */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow-y: auto;
+  padding: 0 16px 16px 16px;
+}
 
   /* ===== Aufnahme-Steuerungsbereich ===== */
   .controls-container {
@@ -109,7 +131,7 @@
   .recording-list {
     background: transparent;
     padding: 0;
-    margin-top: 30vh; /* Platz für den Header */
+    padding-top: 220px; /* Platz für den Header */
   }
 
   .recording-card {
@@ -159,25 +181,5 @@
   --background: var(--ion-background-color);
   position: relative;
   padding: 0;
-}
-
-.fixed-header {
-  position: fixed;
-  top: 56px; /* Höhe von <ion-header> */
-  left: 0;
-  right: 0;
-  z-index: 10;
-  background: var(--ion-background-color);
-  padding: 10px 16px;
-}
-
-.scrollable-list {
-  position: absolute;
-  top: 10px; /* Passe das an die tatsächliche Höhe von fixed-header an */
-  bottom: 0;
-  left: 0;
-  right: 0;
-  overflow-y: auto;
-  padding: 0 16px 16px 16px;
 }
 
