@@ -1,6 +1,6 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { AudioService } from '../services/audio.service';
-import { Filesystem, Directory, FileInfo } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { AudioRecorder } from '@capawesome-team/capacitor-audio-recorder';
@@ -44,33 +44,36 @@ export class HomePage implements OnInit {
 
   async loadRecordings() {
     try {
-      // 'files' ist ein Array von FileInfo-Objekten, die Metadaten enthalten
       const { files } = await Filesystem.readdir({ path: '', directory: Directory.Data });
-
-      // Filtere und sortiere die kompletten FileInfo-Objekte in einem Schritt
-      const sortedFiles = files
-        .filter((file: FileInfo) => {
+      
+      // Erweiterte Filterung für Systemdateien
+      this.recordings = files
+        .filter(file => {
           const fileName = file.name;
-          // Filtere bekannte Systemdateien und ungültige Einträge heraus
-          const systemFiles = ['profileInstalled', 'rList', '.DS_Store', 'Thumbs.db', '.gitkeep'];
+          // Filtere bekannte Systemdateien heraus
+          const systemFiles = [
+            'profileInstalled',
+            'rList',
+            '.DS_Store',
+            'Thumbs.db',
+            '.gitkeep'
+          ];
+          
+          // Zusätzliche Checks für potenzielle Systemdateien
           const isSystemFile = systemFiles.includes(fileName) ||
                               fileName.startsWith('.') ||
                               fileName.length === 0 ||
-                              !fileName.includes('.');
+                              !fileName.includes('.') ||
+                              fileName === 'rList';
           
-          // Akzeptiere nur Audiodateien oder Dateien, die dem Namensmuster 'recording' folgen
+          // Nur echte Audiodateien durchlassen (optional: spezifische Dateierweiterungen)
           const isAudioFile = fileName.match(/\.(mp3|wav|m4a|aac|ogg|webm)$/i);
           
-          return !isSystemFile && (!!isAudioFile || fileName.includes('recording'));
+          return !isSystemFile && (isAudioFile || fileName.includes('recording'));
         })
-        .sort((a: FileInfo, b: FileInfo) => {
-          // Sortiere nach dem Änderungsdatum (mtime), neueste Aufnahme zuerst
-          return b.mtime - a.mtime;
-        });
+        .map(file => file.name);
       
-      this.recordings = sortedFiles.map(file => file.name);
-      
-      console.log('📄 Gefilterte und sortierte Aufnahmen:', this.recordings);
+      console.log('📄 Gefilterte Aufnahmen:', this.recordings);
       this.cd.detectChanges();
     } catch (e) {
       console.error('❌ Fehler beim Laden der Aufnahmen', e);
@@ -127,18 +130,19 @@ export class HomePage implements OnInit {
   async deleteRecording(fileName: string) {
     try {
       await Filesystem.deleteFile({ path: fileName, directory: Directory.Data });
-      // Lade die Liste neu, um die korrekte Sortierung beizubehalten
-      await this.loadRecordings();
+      this.recordings = this.recordings.filter(r => r !== fileName);
       if (this.currentlyPlayingFile === fileName) {
         this.audio.pause();
         this.currentlyPlayingFile = null;
       }
+      this.cd.detectChanges();
     } catch (e) {
       console.error('❌ Fehler beim Löschen:', e);
     }
   }
 
   async togglePlayback(fileName: string) {
+    // Wenn die aktuelle Datei geklickt wird, pausiere oder setze fort
     if (this.currentlyPlayingFile === fileName) {
       if (this.isAudioPaused) {
         this.audio.play();
@@ -157,6 +161,7 @@ export class HomePage implements OnInit {
         this.currentlyPlayingFile = fileName;
         this.isAudioPaused = false;
 
+        // Setze den Status zurück, wenn die Wiedergabe endet
         this.audio.onended = () => {
           this.currentlyPlayingFile = null;
           this.isAudioPaused = false;
@@ -175,7 +180,7 @@ export class HomePage implements OnInit {
       const { uri } = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
       await Share.share({
         title: 'Meine Aufnahme',
-        text: 'Hör dir diese Aufnahme an!',
+        text: 'Schau dir diese Aufnahme an',
         url: uri,
         dialogTitle: 'Aufnahme teilen'
       });
