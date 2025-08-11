@@ -47,33 +47,40 @@ export class HomePage implements OnInit {
       const { files } = await Filesystem.readdir({ path: '', directory: Directory.Data });
       
       // Erweiterte Filterung für Systemdateien
-      this.recordings = files
-        .filter(file => {
-          const fileName = file.name;
-          // Filtere bekannte Systemdateien heraus
-          const systemFiles = [
-            'profileInstalled',
-            'rList',
-            '.DS_Store',
-            'Thumbs.db',
-            '.gitkeep'
-          ];
-          
-          // Zusätzliche Checks für potenzielle Systemdateien
-          const isSystemFile = systemFiles.includes(fileName) ||
-                              fileName.startsWith('.') ||
-                              fileName.length === 0 ||
-                              !fileName.includes('.') ||
-                              fileName === 'rList';
-          
-          // Nur echte Audiodateien durchlassen (optional: spezifische Dateierweiterungen)
-          const isAudioFile = fileName.match(/\.(mp3|wav|m4a|aac|ogg|webm)$/i);
-          
-          return !isSystemFile && (isAudioFile || fileName.includes('recording'));
+      const filteredFiles = files.filter(file => {
+        const fileName = file.name;
+        const systemFiles = [
+          'profileInstalled',
+          'rList',
+          '.DS_Store',
+          'Thumbs.db',
+          '.gitkeep'
+        ];
+        
+        const isSystemFile = systemFiles.includes(fileName) ||
+                            fileName.startsWith('.') ||
+                            fileName.length === 0 ||
+                            !fileName.includes('.') ||
+                            fileName === 'rList';
+        
+        const isAudioFile = fileName.match(/\.(mp3|wav|m4a|aac|ogg|webm)$/i);
+        
+        return !isSystemFile && (isAudioFile || fileName.includes('recording'));
+      });
+
+      // Hole Erstellungsdatum für jede Datei und sortiere absteigend (neueste oben)
+      const filesWithDates = await Promise.all(
+        filteredFiles.map(async file => {
+          const stat = await Filesystem.stat({ path: file.name, directory: Directory.Data });
+          return { name: file.name, mtime: stat.mtime ?? 0 };
         })
+      );
+
+      this.recordings = filesWithDates
+        .sort((a, b) => b.mtime - a.mtime) 
         .map(file => file.name);
-      
-      console.log('📄 Gefilterte Aufnahmen:', this.recordings);
+
+      console.log('📄 Sortierte Aufnahmen:', this.recordings);
       this.cd.detectChanges();
     } catch (e) {
       console.error('❌ Fehler beim Laden der Aufnahmen', e);
@@ -86,7 +93,6 @@ export class HomePage implements OnInit {
       return;
     }
     try {
-      // Stoppe die Wiedergabe, falls eine Aufnahme läuft
       this.audio.pause();
       this.currentlyPlayingFile = null;
 
@@ -142,7 +148,6 @@ export class HomePage implements OnInit {
   }
 
   async togglePlayback(fileName: string) {
-    // Wenn die aktuelle Datei geklickt wird, pausiere oder setze fort
     if (this.currentlyPlayingFile === fileName) {
       if (this.isAudioPaused) {
         this.audio.play();
@@ -161,7 +166,6 @@ export class HomePage implements OnInit {
         this.currentlyPlayingFile = fileName;
         this.isAudioPaused = false;
 
-        // Setze den Status zurück, wenn die Wiedergabe endet
         this.audio.onended = () => {
           this.currentlyPlayingFile = null;
           this.isAudioPaused = false;
