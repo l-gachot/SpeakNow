@@ -1,10 +1,9 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { AudioService } from '../services/audio.service';
+import { PermissionService } from '../services/permission.service';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
-import { AudioRecorder } from '@capawesome-team/capacitor-audio-recorder';
-import { PermissionService } from '../services/permission.service';
 
 @Component({
   selector: 'app-home',
@@ -13,13 +12,12 @@ import { PermissionService } from '../services/permission.service';
   standalone: false,
 })
 export class HomePage implements OnInit {
-
   recordings: string[] = [];
   isRecording = false;
   isPaused = false;
   permissionsGranted = false;
-  audio = new Audio();
 
+  audio = new Audio();
   currentlyPlayingFile: string | null = null;
   isAudioPaused = false;
 
@@ -31,56 +29,36 @@ export class HomePage implements OnInit {
 
   async ngOnInit() {
     try {
-      await this.permissionService.requestPermissions();
-      const checkResult = await AudioRecorder.checkPermissions();
-      this.permissionsGranted = checkResult.recordAudio === 'granted';
-      this.cd.detectChanges();
-    } catch (err) {
-      console.error('❌ Fehler bei der Berechtigungsanfrage:', err);
+      // Permissions anfragen und Status speichern
+      this.permissionsGranted = await this.permissionService.requestPermissions();
+    } catch {
       this.permissionsGranted = false;
     }
+
+    // Vorhandene Aufnahmen laden (Persistenz)
     await this.loadRecordings();
   }
 
   async loadRecordings() {
     try {
       const { files } = await Filesystem.readdir({ path: '', directory: Directory.Data });
-      
-      // Erweiterte Filterung für Systemdateien
+
+      // System-/Service-Dateien rausfiltern + nur Audiodateien nehmen
       const filteredFiles = files.filter(file => {
-        const fileName = file.name;
-        const systemFiles = [
-          'profileInstalled',
-          'rList',
-          '.DS_Store',
-          'Thumbs.db',
-          '.gitkeep'
-        ];
-        
-        const isSystemFile = systemFiles.includes(fileName) ||
-                            fileName.startsWith('.') ||
-                            fileName.length === 0 ||
-                            !fileName.includes('.') ||
-                            fileName === 'rList';
-        
-        const isAudioFile = fileName.match(/\.(mp3|wav|m4a|aac|ogg|webm)$/i);
-        
-        return !isSystemFile && (isAudioFile || fileName.includes('recording'));
+        const name = file.name ?? '';
+        const systemFiles = ['profileInstalled','rList','.DS_Store','Thumbs.db','.gitkeep'];
+        const isSystem = systemFiles.includes(name) || name.startsWith('.') || name.length === 0 || !name.includes('.');
+        const isAudio = /\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(name) || name.includes('recording');
+        return !isSystem && isAudio;
       });
 
-      // Hole Erstellungsdatum für jede Datei und sortiere absteigend (neueste oben)
-      const filesWithDates = await Promise.all(
-        filteredFiles.map(async file => {
-          const stat = await Filesystem.stat({ path: file.name, directory: Directory.Data });
-          return { name: file.name, mtime: stat.mtime ?? 0 };
-        })
-      );
+      // Nach Änderungszeit sortieren (neueste zuerst)
+      const withDates = await Promise.all(filteredFiles.map(async f => {
+        const stat = await Filesystem.stat({ path: f.name, directory: Directory.Data });
+        return { name: f.name, mtime: stat.mtime ?? 0 };
+      }));
 
-      this.recordings = filesWithDates
-        .sort((a, b) => b.mtime - a.mtime) 
-        .map(file => file.name);
-
-      console.log('📄 Sortierte Aufnahmen:', this.recordings);
+      this.recordings = withDates.sort((a,b) => b.mtime - a.mtime).map(f => f.name);
       this.cd.detectChanges();
     } catch (e) {
       console.error('❌ Fehler beim Laden der Aufnahmen', e);
@@ -89,13 +67,12 @@ export class HomePage implements OnInit {
 
   async startRecording() {
     if (!this.permissionsGranted) {
-      console.warn('⚠️ Keine Berechtigung zum Aufnehmen erteilt.');
+      console.warn('⚠️ Keine Berechtigung zum Aufnehmen.');
       return;
     }
     try {
       this.audio.pause();
       this.currentlyPlayingFile = null;
-
       await this.audioService.startRecording();
       this.isRecording = true;
       this.isPaused = false;
@@ -128,29 +105,15 @@ export class HomePage implements OnInit {
       this.isRecording = false;
       this.isPaused = false;
       await this.loadRecordings();
-    } catch (error) {
-      console.error('❌ Fehler beim Stoppen der Aufnahme:', error);
-    }
-  }
-
-  async deleteRecording(fileName: string) {
-    try {
-      await Filesystem.deleteFile({ path: fileName, directory: Directory.Data });
-      this.recordings = this.recordings.filter(r => r !== fileName);
-      if (this.currentlyPlayingFile === fileName) {
-        this.audio.pause();
-        this.currentlyPlayingFile = null;
-      }
-      this.cd.detectChanges();
-    } catch (e) {
-      console.error('❌ Fehler beim Löschen:', e);
+    } catch (err) {
+      console.error('❌ Fehler beim Stoppen:', err);
     }
   }
 
   async togglePlayback(fileName: string) {
     if (this.currentlyPlayingFile === fileName) {
       if (this.isAudioPaused) {
-        this.audio.play();
+        await this.audio.play();
         this.isAudioPaused = false;
       } else {
         this.audio.pause();
@@ -161,7 +124,7 @@ export class HomePage implements OnInit {
         const { uri } = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
         this.audio.src = Capacitor.convertFileSrc(uri);
         this.audio.load();
-        this.audio.play();
+        await this.audio.play();
 
         this.currentlyPlayingFile = fileName;
         this.isAudioPaused = false;
@@ -186,10 +149,25 @@ export class HomePage implements OnInit {
         title: 'Meine Aufnahme',
         text: 'Schau dir diese Aufnahme an',
         url: uri,
+        files: [uri],
         dialogTitle: 'Aufnahme teilen'
       });
     } catch (err) {
-      console.warn('⚠️ Teilen wurde vom Benutzer abgebrochen oder ist fehlgeschlagen:', err);
+      console.warn('⚠️ Teilen abgebrochen oder fehlgeschlagen:', err);
+    }
+  }
+
+  async deleteRecording(fileName: string) {
+    try {
+      await Filesystem.deleteFile({ path: fileName, directory: Directory.Data });
+      this.recordings = this.recordings.filter(r => r !== fileName);
+      if (this.currentlyPlayingFile === fileName) {
+        this.audio.pause();
+        this.currentlyPlayingFile = null;
+      }
+      this.cd.detectChanges();
+    } catch (e) {
+      console.error('❌ Fehler beim Löschen:', e);
     }
   }
 }

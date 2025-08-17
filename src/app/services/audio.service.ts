@@ -1,55 +1,48 @@
 import { Injectable } from '@angular/core';
-import { AudioRecorder, StopRecordingResult } from '@capawesome-team/capacitor-audio-recorder';
+import { AudioRecorder } from '@capawesome-team/capacitor-audio-recorder';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { FilePicker } from '@capawesome/capacitor-file-picker';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class AudioService {
-  private lastResult?: StopRecordingResult;
-
-  constructor() {}
+  private recordingActive = false;
 
   async startRecording(): Promise<void> {
     await AudioRecorder.startRecording();
+    this.recordingActive = true;
     console.log('🎙️ Aufnahme gestartet');
   }
 
   async pauseRecording(): Promise<void> {
+    if (!this.recordingActive) return;
     await AudioRecorder.pauseRecording();
     console.log('⏸️ Aufnahme pausiert');
   }
 
   async resumeRecording(): Promise<void> {
+    if (!this.recordingActive) return;
     await AudioRecorder.resumeRecording();
     console.log('▶️ Aufnahme fortgesetzt');
   }
 
+
   async stopRecording(): Promise<string> {
-    try {
-      const result: StopRecordingResult = await AudioRecorder.stopRecording();
-      if (!result.uri) {
-        throw new Error('❌ Keine URI im Ergebnis von stopRecording()');
-      }
+    if (!this.recordingActive) throw new Error('Keine aktive Aufnahme');
+    const { uri } = await AudioRecorder.stopRecording(); 
+    this.recordingActive = false;
 
-      this.lastResult = result;
-      const fileName = `recording_${Date.now()}.m4a`;
+    if (!uri) throw new Error('❌ Keine URI im Ergebnis von stopRecording()');
 
-      await Filesystem.copy({
-        from: result.uri,
-        to: fileName,
-        toDirectory: Directory.Data, 
-      });
+    const stamp = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const fileName = `recording_${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())}_${pad(stamp.getHours())}-${pad(stamp.getMinutes())}-${pad(stamp.getSeconds())}.m4a`;
 
-      console.log('✅ Datei erfolgreich kopiert:', fileName);
-      return fileName;
-    } catch (err) {
-      console.error('❌ Fehler beim Stoppen oder Kopieren der Aufnahme:', err);
-      throw err;
-    }
-  }
+    const dest = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
 
-  getLastResult(): StopRecordingResult | undefined {
-    return this.lastResult;
+
+    await FilePicker.copyFile({ from: uri, to: dest.uri });
+
+    console.log('✅ Datei erfolgreich kopiert:', fileName);
+    return fileName;
   }
 }
