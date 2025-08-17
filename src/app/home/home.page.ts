@@ -153,6 +153,7 @@ private setupAppStateListener() {
   }
 
   private startAudioStatusPolling(fileName: string) {
+    this.clearAudioStatusInterval();
     this.audioStatusInterval = setInterval(async () => {
       try {
         const isPlaying = await this.audioService.isAudioPlaying(fileName);
@@ -189,13 +190,6 @@ private async syncAudioStatus() {
     this.isAudioPaused = false;
     this.clearAudioStatusInterval();
     this.cd.detectChanges();
-    
-    try {
-      for (const fileName of this.recordings) {
-      }
-    } catch (error) {
-      console.error('❌ Fehler beim Synchronisieren des Audio-Status:', error);
-    }
   }
 
 async togglePlayback(fileName: string) {

@@ -9,17 +9,6 @@ export class AudioService {
   private recordingActive = false;
   private preloadedAudios = new Map<string, string>();
   
-  constructor() {
-    this.initializeNativeAudio();
-  }
-
-  private async initializeNativeAudio() {
-    try {
-      console.log('🎵 Native Audio initialisiert');
-    } catch (error) {
-      console.error('❌ Fehler beim Initialisieren von Native Audio:', error);
-    }
-  }
 
   async startRecording(): Promise<void> {
     await this.stopAllAudios();
