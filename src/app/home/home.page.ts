@@ -54,15 +54,24 @@ export class HomePage implements OnInit, OnDestroy {
     }
   }
 
-  private setupAppStateListener() {
-    this.appStateListener = App.addListener('appStateChange', async (state) => {
-      if (state.isActive) {
-        setTimeout(async () => {
-          await this.syncAudioStatus();
-        }, 100); 
+private setupAppStateListener() {
+  this.appStateListener = App.addListener('appStateChange', async (state) => {
+    if (state.isActive) {
+      setTimeout(async () => {
+        await this.syncAudioStatus();
+      }, 100); 
+    } else {
+      if (this.currentlyPlayingFile) {
+        try {
+          await this.audioService.pauseAudio(this.currentlyPlayingFile);
+          console.log('Playback bei App-Inaktivität pausiert.');
+        } catch (error) {
+          console.error('Fehler beim Pausieren des Playbacks:', error);
+        }
       }
-    });
-  }
+    }
+  });
+}
 
   async loadRecordings() {
     try {
@@ -168,64 +177,58 @@ export class HomePage implements OnInit, OnDestroy {
     }
   }
 
-  private async syncAudioStatus() {
+private async syncAudioStatus() {
+    try {
+      await this.audioService.stopAllAudios();
+      console.log('🔄 Alle Audios bei Status-Sync gestoppt.');
+    } catch (error) {
+      console.error('❌ Fehler beim Stoppen aller Audios während Sync:', error);
+    }
+
+    this.currentlyPlayingFile = null;
+    this.isAudioPaused = false;
+    this.clearAudioStatusInterval();
+    this.cd.detectChanges();
+    
     try {
       for (const fileName of this.recordings) {
-        const isPlaying = await this.audioService.isAudioPlaying(fileName);
-        
-        if (isPlaying) {
-          this.currentlyPlayingFile = fileName;
-          this.isAudioPaused = false;
-          this.startAudioStatusPolling(fileName);
-          this.cd.detectChanges();
-          console.log(`🔄 Audio-Status wiederhergestellt: ${fileName} läuft`);
-          break; 
-        }
-      }
-      
-      if (!this.recordings.some(async fileName => await this.audioService.isAudioPlaying(fileName))) {
-        this.currentlyPlayingFile = null;
-        this.isAudioPaused = false;
-        this.clearAudioStatusInterval();
-        this.cd.detectChanges();
       }
     } catch (error) {
       console.error('❌ Fehler beim Synchronisieren des Audio-Status:', error);
     }
   }
 
-  async togglePlayback(fileName: string) {
-    try {
-      if (this.currentlyPlayingFile === fileName) {
-        const isPlaying = await this.audioService.isAudioPlaying(fileName);
-        
-        if (isPlaying) {
-          await this.audioService.pauseAudio(fileName);
-          this.isAudioPaused = true;
-          this.clearAudioStatusInterval();
-        } else {
-          await this.audioService.resumeAudio(fileName);
-          this.isAudioPaused = false;
-          this.startAudioStatusPolling(fileName);
-        }
-      } else {
-        await this.stopCurrentPlayback();
-        
-        await this.audioService.playAudio(fileName);
-        this.currentlyPlayingFile = fileName;
-        this.isAudioPaused = false;
-        this.startAudioStatusPolling(fileName);
-      }
-      
-      this.cd.detectChanges();
-    } catch (err) {
-      console.error('❌ Fehler beim Abspielen:', err);
-      this.currentlyPlayingFile = null;
-      this.isAudioPaused = false;
-      this.clearAudioStatusInterval();
-      this.cd.detectChanges();
-    }
-  }
+async togglePlayback(fileName: string) {
+  try {
+    if (this.currentlyPlayingFile === fileName) {
+      const isPlaying = await this.audioService.isAudioPlaying(fileName);
+      if (isPlaying) {
+        await this.audioService.pauseAudio(fileName);
+        this.isAudioPaused = true;
+        this.clearAudioStatusInterval();
+      } else {
+        await this.audioService.resumeAudio(fileName);
+        this.isAudioPaused = false;
+        this.startAudioStatusPolling(fileName);
+      }
+    } else {
+      await this.stopCurrentPlayback();
+      
+      await this.audioService.playAudio(fileName);
+      this.currentlyPlayingFile = fileName;
+      this.isAudioPaused = false;
+      this.startAudioStatusPolling(fileName);
+    }
+    
+    this.cd.detectChanges();
+  } catch (err) {
+    console.error('❌ Fehler beim Abspielen:', err);
+    this.currentlyPlayingFile = null;
+    this.isAudioPaused = false;
+    this.clearAudioStatusInterval();
+    this.cd.detectChanges();
+  }
+}
 
   async shareRecording(fileName: string) {
     try {
