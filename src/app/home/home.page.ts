@@ -1,9 +1,9 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 
 @Component({
   selector: 'app-home',
@@ -11,15 +11,16 @@ import { Capacitor } from '@capacitor/core';
   styleUrls: ['home.page.scss'],
   standalone: false,
 })
-export class HomePage implements OnInit {
+export class HomePage implements OnInit, OnDestroy {
   recordings: string[] = [];
   isRecording = false;
   isPaused = false;
   permissionsGranted = false;
 
-  audio = new Audio();
   currentlyPlayingFile: string | null = null;
   isAudioPaused = false;
+  audioStatusInterval: any = null;
+  private appStateListener: any = null;
 
   constructor(
     private audioService: AudioService,
@@ -29,21 +30,44 @@ export class HomePage implements OnInit {
 
   async ngOnInit() {
     try {
-      // Permissions anfragen und Status speichern
       this.permissionsGranted = await this.permissionService.requestPermissions();
     } catch {
       this.permissionsGranted = false;
     }
 
-    // Vorhandene Aufnahmen laden (Persistenz)
     await this.loadRecordings();
+    
+    await this.syncAudioStatus();
+    
+    this.setupAppStateListener();
+  }
+
+  async ngOnDestroy() {
+    await this.audioService.cleanup();
+    
+    if (this.audioStatusInterval) {
+      clearInterval(this.audioStatusInterval);
+    }
+    
+    if (this.appStateListener) {
+      this.appStateListener.remove();
+    }
+  }
+
+  private setupAppStateListener() {
+    this.appStateListener = App.addListener('appStateChange', async (state) => {
+      if (state.isActive) {
+        setTimeout(async () => {
+          await this.syncAudioStatus();
+        }, 100); 
+      }
+    });
   }
 
   async loadRecordings() {
     try {
       const { files } = await Filesystem.readdir({ path: '', directory: Directory.Data });
 
-      // System-/Service-Dateien rausfiltern + nur Audiodateien nehmen
       const filteredFiles = files.filter(file => {
         const name = file.name ?? '';
         const systemFiles = ['profileInstalled','rList','.DS_Store','Thumbs.db','.gitkeep'];
@@ -52,7 +76,6 @@ export class HomePage implements OnInit {
         return !isSystem && isAudio;
       });
 
-      // Nach Änderungszeit sortieren (neueste zuerst)
       const withDates = await Promise.all(filteredFiles.map(async f => {
         const stat = await Filesystem.stat({ path: f.name, directory: Directory.Data });
         return { name: f.name, mtime: stat.mtime ?? 0 };
@@ -71,8 +94,8 @@ export class HomePage implements OnInit {
       return;
     }
     try {
-      this.audio.pause();
-      this.currentlyPlayingFile = null;
+      await this.stopCurrentPlayback();
+      
       await this.audioService.startRecording();
       this.isRecording = true;
       this.isPaused = false;
@@ -110,36 +133,98 @@ export class HomePage implements OnInit {
     }
   }
 
-  async togglePlayback(fileName: string) {
-    if (this.currentlyPlayingFile === fileName) {
-      if (this.isAudioPaused) {
-        await this.audio.play();
-        this.isAudioPaused = false;
-      } else {
-        this.audio.pause();
-        this.isAudioPaused = true;
-      }
-    } else {
+  private async stopCurrentPlayback() {
+    if (this.currentlyPlayingFile) {
+      await this.audioService.stopAudio(this.currentlyPlayingFile);
+      this.currentlyPlayingFile = null;
+      this.isAudioPaused = false;
+      this.clearAudioStatusInterval();
+      this.cd.detectChanges();
+    }
+  }
+
+  private startAudioStatusPolling(fileName: string) {
+    this.audioStatusInterval = setInterval(async () => {
       try {
-        const { uri } = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
-        this.audio.src = Capacitor.convertFileSrc(uri);
-        this.audio.load();
-        await this.audio.play();
-
-        this.currentlyPlayingFile = fileName;
-        this.isAudioPaused = false;
-
-        this.audio.onended = () => {
+        const isPlaying = await this.audioService.isAudioPlaying(fileName);
+        
+        if (!isPlaying && this.currentlyPlayingFile === fileName) {
           this.currentlyPlayingFile = null;
           this.isAudioPaused = false;
+          this.clearAudioStatusInterval();
           this.cd.detectChanges();
-        };
-      } catch (err) {
-        console.error('❌ Fehler beim Abspielen', err);
-        this.currentlyPlayingFile = null;
+        }
+      } catch (error) {
+        console.error('❌ Fehler beim Status-Polling:', error);
+        this.clearAudioStatusInterval();
       }
+    }, 500);
+  }
+
+  private clearAudioStatusInterval() {
+    if (this.audioStatusInterval) {
+      clearInterval(this.audioStatusInterval);
+      this.audioStatusInterval = null;
     }
-    this.cd.detectChanges();
+  }
+
+  private async syncAudioStatus() {
+    try {
+      for (const fileName of this.recordings) {
+        const isPlaying = await this.audioService.isAudioPlaying(fileName);
+        
+        if (isPlaying) {
+          this.currentlyPlayingFile = fileName;
+          this.isAudioPaused = false;
+          this.startAudioStatusPolling(fileName);
+          this.cd.detectChanges();
+          console.log(`🔄 Audio-Status wiederhergestellt: ${fileName} läuft`);
+          break; 
+        }
+      }
+      
+      if (!this.recordings.some(async fileName => await this.audioService.isAudioPlaying(fileName))) {
+        this.currentlyPlayingFile = null;
+        this.isAudioPaused = false;
+        this.clearAudioStatusInterval();
+        this.cd.detectChanges();
+      }
+    } catch (error) {
+      console.error('❌ Fehler beim Synchronisieren des Audio-Status:', error);
+    }
+  }
+
+  async togglePlayback(fileName: string) {
+    try {
+      if (this.currentlyPlayingFile === fileName) {
+        const isPlaying = await this.audioService.isAudioPlaying(fileName);
+        
+        if (isPlaying) {
+          await this.audioService.pauseAudio(fileName);
+          this.isAudioPaused = true;
+          this.clearAudioStatusInterval();
+        } else {
+          await this.audioService.resumeAudio(fileName);
+          this.isAudioPaused = false;
+          this.startAudioStatusPolling(fileName);
+        }
+      } else {
+        await this.stopCurrentPlayback();
+        
+        await this.audioService.playAudio(fileName);
+        this.currentlyPlayingFile = fileName;
+        this.isAudioPaused = false;
+        this.startAudioStatusPolling(fileName);
+      }
+      
+      this.cd.detectChanges();
+    } catch (err) {
+      console.error('❌ Fehler beim Abspielen:', err);
+      this.currentlyPlayingFile = null;
+      this.isAudioPaused = false;
+      this.clearAudioStatusInterval();
+      this.cd.detectChanges();
+    }
   }
 
   async shareRecording(fileName: string) {
@@ -159,12 +244,15 @@ export class HomePage implements OnInit {
 
   async deleteRecording(fileName: string) {
     try {
-      await Filesystem.deleteFile({ path: fileName, directory: Directory.Data });
-      this.recordings = this.recordings.filter(r => r !== fileName);
       if (this.currentlyPlayingFile === fileName) {
-        this.audio.pause();
-        this.currentlyPlayingFile = null;
+        await this.stopCurrentPlayback();
       }
+      
+      await this.audioService.unloadAudio(fileName);
+      
+      await Filesystem.deleteFile({ path: fileName, directory: Directory.Data });
+      
+      this.recordings = this.recordings.filter(r => r !== fileName);
       this.cd.detectChanges();
     } catch (e) {
       console.error('❌ Fehler beim Löschen:', e);
