@@ -110,37 +110,35 @@ export class HomePage implements OnInit {
     }
   }
 
-  async togglePlayback(fileName: string) {
-    if (this.currentlyPlayingFile === fileName) {
-      if (this.isAudioPaused) {
-        await this.audio.play();
-        this.isAudioPaused = false;
-      } else {
-        this.audio.pause();
-        this.isAudioPaused = true;
-      }
-    } else {
-      try {
-        const { uri } = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
-        this.audio.src = Capacitor.convertFileSrc(uri);
-        this.audio.load();
-        await this.audio.play();
+async togglePlayback(fileName: string) {
+  // Wenn gerade diese Datei spielt → komplett stoppen
+  if (this.currentlyPlayingFile === fileName) {
+    this.audio.pause();
+    this.audio.currentTime = 0; // zurück an den Anfang
+    this.currentlyPlayingFile = null;
+    this.isAudioPaused = false;
+  } else {
+    try {
+      const { uri } = await Filesystem.getUri({ directory: Directory.Data, path: fileName });
+      this.audio.src = Capacitor.convertFileSrc(uri);
+      this.audio.load();
+      await this.audio.play();
 
-        this.currentlyPlayingFile = fileName;
-        this.isAudioPaused = false;
+      this.currentlyPlayingFile = fileName;
+      this.isAudioPaused = false;
 
-        this.audio.onended = () => {
-          this.currentlyPlayingFile = null;
-          this.isAudioPaused = false;
-          this.cd.detectChanges();
-        };
-      } catch (err) {
-        console.error('❌ Fehler beim Abspielen', err);
+      this.audio.onended = () => {
         this.currentlyPlayingFile = null;
-      }
+        this.isAudioPaused = false;
+        this.cd.detectChanges();
+      };
+    } catch (err) {
+      console.error('❌ Fehler beim Abspielen', err);
+      this.currentlyPlayingFile = null;
     }
-    this.cd.detectChanges();
   }
+  this.cd.detectChanges();
+}
 
   async shareRecording(fileName: string) {
     try {
