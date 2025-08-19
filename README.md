@@ -4,7 +4,7 @@ Die Anwendung stellt eine schlanke Lösung zum Aufnehmen, Abspielen und Verwalte
 📱 Funktionen
 - Berechtigungen abfragen (Mikrofonzugriff)
 - Audio aufnehmen und Aufnahme pausieren
-- Audio abspielen und Wiedergabe pausieren
+- Audio abspielen und Wiedergabe stoppen
 - Aufnahmen teilen
 - Aufnahmen löschen
 
