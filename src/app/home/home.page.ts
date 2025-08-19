@@ -111,7 +111,6 @@ export class HomePage implements OnInit {
   }
 
 async togglePlayback(fileName: string) {
-  // Wenn gerade diese Datei spielt → komplett stoppen
   if (this.currentlyPlayingFile === fileName) {
     this.audio.pause();
     this.audio.currentTime = 0; // zurück an den Anfang
